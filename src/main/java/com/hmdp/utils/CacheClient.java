@@ -99,6 +99,15 @@ public class CacheClient {
         String localKey = LOCK_SHOP_KEY + id;
         boolean hasLock = tryLock(localKey);
         if (hasLock) {
+            // 双重校验
+            shopJson = stringRedisTemplate.opsForValue().get(key);
+            redisData = JSONUtil.toBean(shopJson, RedisData.class);
+            r = JSONUtil.toBean((JSONObject) redisData.getData(), type);
+            expireTime = redisData.getExpireTime();
+            if (expireTime.isAfter(LocalDateTime.now())){
+                unlock(localKey);
+                return r;
+            }
             // 开启独立线程去重建缓存, 当前线程则继续执行，返回老数据（所以逻辑过期会出现
             // 数据一致性问题，但是速度块）
             CACHE_REBUILD_EXECUTOR.submit(() -> {
